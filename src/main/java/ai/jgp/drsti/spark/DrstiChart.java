@@ -4,16 +4,23 @@ import java.io.File;
 import java.io.FileFilter;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.WildcardFileFilter;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.types.Metadata;
+import org.apache.spark.sql.types.StructField;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import static scala.collection.JavaConverters.mapAsJavaMapConverter;
+import static org.apache.spark.sql.functions.*;
 
 /**
  * Everything is a DrstiChart (pronounced drishti chart).
@@ -26,13 +33,20 @@ public abstract class DrstiChart {
       LoggerFactory.getLogger(DrstiChart.class);
 
   private Dataset<Row> chartDataframe;
-  private SparkSession spark;
   private String tmpPath;
+
+  private String title;
+
+  private String yTitle;
+
+  private String xTitle;
 
   public DrstiChart(Dataset<Row> df) {
     this.chartDataframe = df;
-    this.spark = this.chartDataframe.sparkSession();
     this.tmpPath = "/tmp/drsti/session-" + System.currentTimeMillis();
+    this.title = "";
+    this.xTitle = "Y";
+    this.yTitle = "X";
   }
 
   public abstract void render();
@@ -52,30 +66,54 @@ public abstract class DrstiChart {
         DrstiConfig.getExportPath() + "/data.csv");
   }
 
+  /**
+   * Builds the metadata from specific fields and metadata added to the dataframe.
+   * 
+   * @return
+   */
   private boolean buildMetadata() {
     String columns[] = this.chartDataframe.columns();
+    StructField structFields[] = this.chartDataframe.schema().fields();
 
-    JSONArray metadata = new JSONArray();
-
+    JSONArray columnMeta = new JSONArray();
     for (int i = 0; i < columns.length; i++) {
       JSONObject col = new JSONObject();
       col.put("header", columns[i]);
       col.put("key", columns[i]);
-      metadata.add(col);
+      Metadata md = structFields[i].metadata();// (columns[i]).st
+      Map<String, Object> map = mapAsJavaMapConverter(md.map()).asJava();
+      Set<Map.Entry<String, Object>> entries = map.entrySet();
+
+      Iterator<Map.Entry<String, Object>> iterator =
+          entries.iterator();
+
+      while (iterator.hasNext()) {
+        Map.Entry<String, Object> entry = iterator.next();
+        String key = entry.getKey();
+        Object value = entry.getValue();
+        col.put(key, value);
+      }
+      columnMeta.add(col);
     }
+
+    JSONObject graphMeta = new JSONObject();
+    graphMeta.put(DrstiK.TITLE, this.title);
+    graphMeta.put(DrstiK.X_TITLE, this.xTitle);
+    graphMeta.put(DrstiK.Y_TITLE, this.yTitle);
+    graphMeta.put(DrstiK.COLUMNS, columnMeta);
 
     FileWriter file;
     try {
       file = new FileWriter(DrstiConfig.getExportPath() + "/metadata.json");
-      file.write(metadata.toJSONString());
+      file.write(graphMeta.toJSONString());
       file.close();
     } catch (IOException e) {
       log.error(
-          "Writing metadata failed. Previous version is most likfely lost. Reason: {}.",
+          "Writing metadata failed. Previous version is most likely lost. Reason: {}.",
           e.getMessage());
       return false;
     }
-    
+
     return true;
   }
 
@@ -132,5 +170,17 @@ public abstract class DrstiChart {
     }
 
     return true;
+  }
+
+  public void setTitle(String title) {
+    this.title = title;
+  }
+
+  public void setXTitle(String title) {
+    this.xTitle = title;
+  }
+
+  public void setYTitle(String title) {
+    this.yTitle = title;
   }
 }

@@ -1,7 +1,8 @@
 
 # Source
 
- * Source of data: https://www.transtats.bts.gov/TRAFFIC/
+ * Source: United States Bureau of Transportation Statistics (BTS), part of the United States Department of Transportation (DoT)
+ * Link to data: https://www.transtats.bts.gov/TRAFFIC/
  * Fetched date: 2021-09-02
  * Manual modifications: 
    1. Removed 2 first lines in processed files
