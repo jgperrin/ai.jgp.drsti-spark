@@ -30,12 +30,12 @@ import ai.jgp.drsti.spark.utils.DataframeUtils;
  * @author jgp
  *
  */
-public class YearlyAirTrafficPredictionApp {
+public class YearlyAirTrafficGradientPredictionApp {
   private static Logger log =
-      LoggerFactory.getLogger(YearlyAirTrafficPredictionApp.class);
+      LoggerFactory.getLogger(YearlyAirTrafficGradientPredictionApp.class);
 
   public static void main(String[] args) {
-    YearlyAirTrafficPredictionApp app = new YearlyAirTrafficPredictionApp();
+    YearlyAirTrafficGradientPredictionApp app = new YearlyAirTrafficGradientPredictionApp();
     app.start();
   }
 
