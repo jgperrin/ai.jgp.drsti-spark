@@ -15,23 +15,14 @@
   <java.version>1.8</java.version>
   <scala.version>2.12</scala.version>
   <spark.version>3.1.2</spark.version>
+  <json-simple.version>1.1.1</json-simple.version>
+  <delta.version>1.0.0</delta.version>
+  <commons.version>2.11.0</commons.version>
   <junit.version>4.13.1</junit.version>
   <maven-compiler-plugin.version>3.8.0</maven-compiler-plugin.version>
  </properties>
 
  <dependencies>
-
-  <dependency>
-   <groupId>commons-io</groupId>
-   <artifactId>commons-io</artifactId>
-   <version>2.11.0</version>
-  </dependency>
-
-  <dependency>
-   <groupId>com.googlecode.json-simple</groupId>
-   <artifactId>json-simple</artifactId>
-   <version>1.1.1</version>
-  </dependency>
 
   <!-- Spark -->
   <dependency>
@@ -67,6 +58,27 @@
     </exclusion>
    </exclusions>
   </dependency>
+
+  <!-- Delta Lake -->
+  <dependency>
+   <groupId>io.delta</groupId>
+   <artifactId>delta-core_${scala.version}</artifactId>
+   <version>${delta.version}</version>
+  </dependency>
+
+  <!-- Other utilities -->
+  <dependency>
+   <groupId>commons-io</groupId>
+   <artifactId>commons-io</artifactId>
+   <version>${commons.version}</version>
+  </dependency>
+
+  <dependency>
+   <groupId>com.googlecode.json-simple</groupId>
+   <artifactId>json-simple</artifactId>
+   <version>${json-simple.version}</version>
+  </dependency>
+
 
   <dependency>
    <groupId>junit</groupId>
