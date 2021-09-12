@@ -1,7 +1,8 @@
-package ai.jgp.drsti.spark.demo.airtraffic;
+package ai.jgp.drsti.spark.demo.airtraffic.lab100;
 
+import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.expr;
-import static org.apache.spark.sql.functions.*;
+import static org.apache.spark.sql.functions.lit;
 
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -12,20 +13,23 @@ import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import ai.jgp.drsti.spark.*;
-import ai.jgp.drsti.spark.utils.*;
+import ai.jgp.drsti.spark.DrstiChart;
+import ai.jgp.drsti.spark.DrstiK;
+import ai.jgp.drsti.spark.DrstiLineChart;
+import ai.jgp.drsti.spark.DrstiUtils;
+import ai.jgp.drsti.spark.utils.DataframeUtils;
 
 /**
  * 
  * @author jgp
  *
  */
-public class AirTrafficApp {
+public class MonthlyAirTrafficApp {
   private static Logger log =
-      LoggerFactory.getLogger(AirTrafficApp.class);
+      LoggerFactory.getLogger(MonthlyAirTrafficApp.class);
 
   public static void main(String[] args) {
-    AirTrafficApp app = new AirTrafficApp();
+    MonthlyAirTrafficApp app = new MonthlyAirTrafficApp();
     app.start();
   }
 
@@ -64,8 +68,11 @@ public class AirTrafficApp {
         .schema(schema)
         .load(
             "data/bts/International USCarrier_Traffic_20210902163435.csv");
-    internationalPaxDf =
-        internationalPaxDf.withColumnRenamed("pax", "internationalPax");
+    internationalPaxDf = internationalPaxDf
+        .withColumnRenamed("pax", "internationalPax")
+        // Very simple data quality
+        .filter(col("month").isNotNull())
+        .filter(col("internationalPax").isNotNull());
 
     tc = System.currentTimeMillis();
     log.info("International pax ingested in {} ms.", (tc - t0));
@@ -78,91 +85,56 @@ public class AirTrafficApp {
         .schema(schema)
         .load(
             "data/bts/Domestic USCarrier_Traffic_20210902163435.csv");
-    domesticPaxDf = domesticPaxDf.withColumnRenamed("pax", "domesticPax");
+    domesticPaxDf = domesticPaxDf
+        .withColumnRenamed("pax", "domesticPax")
+        // Very simple data quality
+        .filter(col("month").isNotNull())
+        .filter(col("domesticPax").isNotNull());
     tc = System.currentTimeMillis();
     log.info("Domestic pax ingested in {} ms.", (tc - t0));
     t0 = tc;
 
-    Dataset<Row> dfGold = internationalPaxDf
+    // Combining datasets
+    Dataset<Row> df = internationalPaxDf
         .join(domesticPaxDf,
             internationalPaxDf.col("month")
                 .equalTo(domesticPaxDf.col("month")),
             "outer")
         .withColumn("pax", expr("internationalPax + domesticPax"))
         .drop(domesticPaxDf.col("month"))
+        // Very simple data quality
         .filter(
             col("month").$less(lit("2020-01-01").cast(DataTypes.DateType)))
         .orderBy(col("month"))
         .cache();
-    dfGold = DrstiUtils.setHeader(dfGold, "month", "Month of");
-    dfGold = DrstiUtils.setHeader(dfGold, "pax", "Passengers");
-    dfGold = DrstiUtils.setHeader(
-        dfGold, "internationalPax", "International Passengers");
-    dfGold = DrstiUtils.setHeader(
-        dfGold, "domesticPax", "Domestic Passengers");
+    df = DrstiUtils.setHeader(df, "month", "Month of");
+    df = DrstiUtils.setHeader(df, "pax", "Passengers");
+    df = DrstiUtils.setHeader(
+        df, "internationalPax", "International Passengers");
+    df = DrstiUtils.setHeader(
+        df, "domesticPax", "Domestic Passengers");
 
     tc = System.currentTimeMillis();
     log.info("Transformation to gold zone in {} ms.", (tc - t0));
     t0 = tc;
 
     // Shows at most 5 rows from the dataframe
-    dfGold.show(5, false);
-    dfGold.printSchema();
+    df.show(5, false);
+    df.printSchema();
 
-    DrstiChart d = new DrstiLineChart(dfGold);
+    DrstiChart d = new DrstiLineChart(df);
     d.setTitle("Air passenger traffic per month");
+    d.setXScale(DrstiK.SCALE_TIME);
     d.setXTitle(
-        "Period from " + DataframeUtils.min(dfGold, "month") + " to "
-            + DataframeUtils.max(dfGold, "month"));
+        "Period from " + DataframeUtils.min(df, "month") + " to "
+            + DataframeUtils.max(df, "month"));
     d.setYTitle("Passengers (000s)");
     d.render();
 
     tc = System.currentTimeMillis();
     log.info("Data exported for in {} ms.", (tc - t0));
-    t0 = tc;
-
-    Dataset<Row> dfQuarter = dfGold
-        .withColumn("year", year(col("month")))
-        .withColumn("q", ceil(month(col("month")).$div(3)))
-        .withColumn("period", concat(col("year"), lit("-Q"), col("q")))
-        .groupBy(col("period"))
-        .agg(sum("pax").as("pax"),
-            sum("internationalPax").as("internationalPax"),
-            sum("domesticPax").as("domesticPax"))
-        .drop("year")
-        .drop("q")
-        .orderBy(col("period"));
-
-    dfQuarter.show(5, false);
-    dfQuarter.printSchema();
-
-    d = new DrstiLineChart(dfQuarter);
-    d.render();
-
-    Dataset<Row> dfYear = dfGold
-        .withColumn("year", year(col("month")))
-        .groupBy(col("year"))
-        .agg(sum("pax").as("pax"),
-            sum("internationalPax").as("internationalPax"),
-            sum("domesticPax").as("domesticPax"))
-        .orderBy(col("year"));
-    dfYear = DrstiUtils.setHeader(dfYear, "year", "Year");
-    dfYear = DrstiUtils.setHeader(dfYear, "pax", "Passengers");
-    dfYear = DrstiUtils.setHeader(
-        dfYear, "internationalPax", "International Passengers");
-    dfYear = DrstiUtils.setHeader(
-        dfYear, "domesticPax", "Domestic Passengers");
-
-    dfYear.show(5, false);
-    dfYear.printSchema();
-
-    d = new DrstiLineChart(dfYear);
-    d.setTitle("US air traffic, in passengers, per year");
-    d.setXTitle("Year " + DataframeUtils.min(dfYear, "year") + " - " +
-        DataframeUtils.max(dfYear, "year"));
-    d.setYTitle("Passengers (000s)");
-    d.render();
 
     spark.stop();
     return true;
-  }}
+  }
+}

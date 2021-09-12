@@ -8,5 +8,7 @@ public abstract class DrstiK {
   public static final String Y_TITLE = "ytitle";
   public static final String HEADER = "header";
   public static final String COLUMNS = "columns";
+  public static final String SCALE_TIME = "time";
+  public static final String X_SCALE = "xscale";
 
 }

@@ -41,12 +41,15 @@ public abstract class DrstiChart {
 
   private String xTitle;
 
+  private String xScale;
+
   public DrstiChart(Dataset<Row> df) {
     this.chartDataframe = df;
     this.tmpPath = "/tmp/drsti/session-" + System.currentTimeMillis();
     this.title = "";
     this.xTitle = "Y";
     this.yTitle = "X";
+    this.xScale = "labels";
   }
 
   public abstract void render();
@@ -67,7 +70,8 @@ public abstract class DrstiChart {
   }
 
   /**
-   * Builds the metadata from specific fields and metadata added to the dataframe.
+   * Builds the metadata from specific fields and metadata added to the
+   * dataframe.
    * 
    * @return
    */
@@ -99,6 +103,7 @@ public abstract class DrstiChart {
     JSONObject graphMeta = new JSONObject();
     graphMeta.put(DrstiK.TITLE, this.title);
     graphMeta.put(DrstiK.X_TITLE, this.xTitle);
+    graphMeta.put(DrstiK.X_SCALE, this.xScale);
     graphMeta.put(DrstiK.Y_TITLE, this.yTitle);
     graphMeta.put(DrstiK.COLUMNS, columnMeta);
 
@@ -182,5 +187,9 @@ public abstract class DrstiChart {
 
   public void setYTitle(String title) {
     this.yTitle = title;
+  }
+
+  public void setXScale(String scale) {
+    this.xScale = scale;
   }
 }
