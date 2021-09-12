@@ -10,5 +10,6 @@ public abstract class DrstiK {
   public static final String COLUMNS = "columns";
   public static final String SCALE_TIME = "time";
   public static final String X_SCALE = "xscale";
+  public static final String SCALE_LABELS = "labels";
 
 }
