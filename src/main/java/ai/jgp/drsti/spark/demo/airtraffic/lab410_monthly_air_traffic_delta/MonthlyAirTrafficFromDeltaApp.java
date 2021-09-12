@@ -50,10 +50,10 @@ public class MonthlyAirTrafficFromDeltaApp {
     log.info("Spark master available in {} ms.", (tc - t0));
     t0 = tc;
 
-    // Combining datasets
+    // Reading gold data from Delta
     Dataset<Row> df = spark.read().format("delta")
-        .load("./data/tmp/airtrafficmonth")        .orderBy(col("month"))
-;
+        .load("./data/tmp/airtrafficmonth")
+        .orderBy(col("month"));
 
     df = DrstiUtils.setHeader(df, "month", "Month of");
     df = DrstiUtils.setHeader(df, "pax", "Passengers");
@@ -75,7 +75,8 @@ public class MonthlyAirTrafficFromDeltaApp {
     d.setXScale(DrstiK.SCALE_TIME);
     d.setXTitle(
         "Period from " + DataframeUtils.min(df, "month") + " to "
-            + DataframeUtils.max(df, "month") + " Data cached in Delta Lake.");
+            + DataframeUtils.max(df, "month")
+            + " - Data cached in Delta Lake");
     d.setYTitle("Passengers (000s)");
     d.render();
 

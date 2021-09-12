@@ -55,65 +55,13 @@ public class YearlyAirTrafficFromDeltaApp {
     log.info("Spark master available in {} ms.", (tc - t0));
     t0 = tc;
 
-    // Creates the schema
-    StructType schema = DataTypes.createStructType(new StructField[] {
-        DataTypes.createStructField(
-            "month",
-            DataTypes.DateType,
-            false),
-        DataTypes.createStructField(
-            "pax",
-            DataTypes.IntegerType,
-            true) });
-
-    // Reads a CSV file with header
-    Dataset<Row> internationalPaxDf = spark.read().format("csv")
-        .option("header", true)
-        .option("dateFormat", "MMMM yyyy")
-        .schema(schema)
-        .load(
-            "data/bts/International USCarrier_Traffic_20210902163435.csv");
-    internationalPaxDf = internationalPaxDf
-        .withColumnRenamed("pax", "internationalPax")
-        // Very simple data quality
-        .filter(col("month").isNotNull())
-        .filter(col("internationalPax").isNotNull());
+    // Reading gold data from Delta
+    Dataset<Row> df = spark.read().format("delta")
+        .load("./data/tmp/airtrafficmonth")
+        .orderBy(col("month"));
 
     tc = System.currentTimeMillis();
-    log.info("International pax ingested in {} ms.", (tc - t0));
-    t0 = tc;
-
-    // Domestic
-    Dataset<Row> domesticPaxDf = spark.read().format("csv")
-        .option("header", true)
-        .option("dateFormat", "MMMM yyyy")
-        .schema(schema)
-        .load(
-            "data/bts/Domestic USCarrier_Traffic_20210902163435.csv");
-    domesticPaxDf = domesticPaxDf
-        .withColumnRenamed("pax", "domesticPax")
-        // Very simple data quality
-        .filter(col("month").isNotNull())
-        .filter(col("domesticPax").isNotNull());
-    tc = System.currentTimeMillis();
-    log.info("Domestic pax ingested in {} ms.", (tc - t0));
-    t0 = tc;
-
-    // Combining datasets
-    Dataset<Row> df = internationalPaxDf
-        .join(domesticPaxDf,
-            internationalPaxDf.col("month")
-                .equalTo(domesticPaxDf.col("month")),
-            "outer")
-        .withColumn("pax", expr("internationalPax + domesticPax"))
-        .drop(domesticPaxDf.col("month"))
-        // Very simple data quality
-        .filter(
-            col("month").$less(lit("2020-01-01").cast(DataTypes.DateType)))
-        .orderBy(col("month"))
-        .cache();
-    tc = System.currentTimeMillis();
-    log.info("Transformation to gold zone in {} ms.", (tc - t0));
+    log.info("Reading gold zone in {} ms.", (tc - t0));
     t0 = tc;
 
     Dataset<Row> dfYear = df
@@ -129,6 +77,9 @@ public class YearlyAirTrafficFromDeltaApp {
         dfYear, "internationalPax", "International Passengers");
     dfYear = DrstiUtils.setHeader(
         dfYear, "domesticPax", "Domestic Passengers");
+    tc = System.currentTimeMillis();
+    log.info("Transformation for yearly graph {} ms.", (tc - t0));
+    t0 = tc;
 
     dfYear.show(5, false);
     dfYear.printSchema();
@@ -136,7 +87,7 @@ public class YearlyAirTrafficFromDeltaApp {
     DrstiLineChart d = new DrstiLineChart(dfYear);
     d.setTitle("US air traffic, in passengers, per year");
     d.setXTitle("Year " + DataframeUtils.min(dfYear, "year") + " - " +
-        DataframeUtils.max(dfYear, "year"));
+        DataframeUtils.max(dfYear, "year")+ " - Data cached in Delta Lake");
     d.setYTitle("Passengers (000s)");
     d.render();
 
