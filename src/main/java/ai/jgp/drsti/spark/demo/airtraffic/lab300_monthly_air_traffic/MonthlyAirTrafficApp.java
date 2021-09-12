@@ -1,4 +1,4 @@
-package ai.jgp.drsti.spark.demo.airtraffic.lab100;
+package ai.jgp.drsti.spark.demo.airtraffic.lab300_monthly_air_traffic;
 
 import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.expr;
