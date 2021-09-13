@@ -2,6 +2,10 @@ package ai.jgp.drsti.spark.demo.airtraffic.lab610_yearly_air_traffic_prediction_
 
 import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.sum;
+
+import java.util.Arrays;
+import java.util.List;
+
 import static org.apache.spark.sql.functions.*;
 
 import org.apache.spark.ml.Pipeline;
@@ -18,6 +22,7 @@ import org.apache.spark.ml.regression.LinearRegression;
 import org.apache.spark.ml.regression.LinearRegressionModel;
 import org.apache.spark.ml.regression.RegressionModel;
 import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.slf4j.Logger;
@@ -110,19 +115,29 @@ public class YearlyAirTrafficLinearPredictionApp {
     predict(2019, model);
     predict(2018, model);
     predict(2017, model);
+    
+    Integer[] l = new Integer[] { 2022,2023,2024,2025,2026 };
+    List<Integer> data = Arrays.asList(l);
+    Dataset<Row> futuresDf = spark.createDataset(data, Encoders.INT()).toDF();
 
-    // Graph
+    dfYear=dfYear        .unionByName(futuresDf, true);
+    dfYear.show(20);
     dfYear = model.transform(dfYear);
+    
+    // Graph
     dfYear.printSchema();
     dfYear = dfYear
         .drop("features")
         .drop("rawFeatures")
         .drop("internationalPax")
         .drop("domesticPax")
-        .withColumn("paxInModel", when(col("year").$less$eq(threshold), col("pax")).otherwise(null));
+        .withColumn("paxInModel",
+            when(col("year").$less$eq(threshold), col("pax"))
+                .otherwise(null));
 
     dfYear = DrstiUtils.setHeader(dfYear, "year", "Year");
-    dfYear = DrstiUtils.setHeader(dfYear, "paxInModel", "Passenger used in model");
+    dfYear = DrstiUtils.setHeader(dfYear, "paxInModel",
+        "Passenger used in model");
     dfYear = DrstiUtils.setHeader(dfYear, "pax", "Passengers");
     dfYear =
         DrstiUtils.setHeader(dfYear, "prediction", "Prediction (-> 2019)");
@@ -130,7 +145,7 @@ public class YearlyAirTrafficLinearPredictionApp {
     DrstiLineChart d = new DrstiLineChart(dfYear);
     d.setTitle("US air traffic, in passengers, per year");
     d.setXTitle("Year " + DataframeUtils.min(dfYear, "year") + " - " +
-        DataframeUtils.max(dfYear, "year")        );
+        DataframeUtils.max(dfYear, "year"));
     d.setYTitle("Passengers (000s)");
     d.render();
 
