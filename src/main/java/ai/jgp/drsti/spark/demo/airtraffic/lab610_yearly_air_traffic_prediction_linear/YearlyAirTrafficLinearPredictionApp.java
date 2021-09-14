@@ -115,29 +115,45 @@ public class YearlyAirTrafficLinearPredictionApp {
     predict(2019, model);
     predict(2018, model);
     predict(2017, model);
-    
-    Integer[] l = new Integer[] { 2022,2023,2024,2025,2026 };
-    List<Integer> data = Arrays.asList(l);
-    Dataset<Row> futuresDf = spark.createDataset(data, Encoders.INT()).toDF();
 
-    dfYear=dfYear        .unionByName(futuresDf, true);
-    dfYear.show(20);
-    dfYear = model.transform(dfYear);
-    
-    // Graph
+    Integer[] l = new Integer[] { 2022, 2023, 2024, 2025, 2026 };
+    List<Integer> data = Arrays.asList(l);
+    Dataset<Row> futuresDf =
+        spark.createDataset(data, Encoders.INT()).toDF()
+            .withColumnRenamed("value", "year");
+    assembler = new VectorAssembler()
+        .setInputCols(inputCols)
+        .setOutputCol("features");
+    futuresDf = assembler.transform(futuresDf); 
+    log.info("Futures");
+    futuresDf.show();
+    futuresDf.printSchema();
+    log.info("/Futures");
+
+    dfYear = dfYear.unionByName(futuresDf, true);
+    dfYear.show(40);
     dfYear.printSchema();
+
+    dfYear = model.transform(dfYear);
+    dfYear.show(20);
+
+    dfYear.printSchema();
+
+    // Preparing dataframe for graph
     dfYear = dfYear
         .drop("features")
+        .drop("indexedFeatures")
         .drop("rawFeatures")
         .drop("internationalPax")
         .drop("domesticPax")
-        .withColumn("paxInModel",
+        .withColumn("paxInModel2019",
             when(col("year").$less$eq(threshold), col("pax"))
                 .otherwise(null));
 
+    // Graph
     dfYear = DrstiUtils.setHeader(dfYear, "year", "Year");
-    dfYear = DrstiUtils.setHeader(dfYear, "paxInModel",
-        "Passenger used in model");
+    dfYear = DrstiUtils.setHeader(dfYear, "paxInModel2019",
+        "Passenger used in model 2019");
     dfYear = DrstiUtils.setHeader(dfYear, "pax", "Passengers");
     dfYear =
         DrstiUtils.setHeader(dfYear, "prediction", "Prediction (-> 2019)");
