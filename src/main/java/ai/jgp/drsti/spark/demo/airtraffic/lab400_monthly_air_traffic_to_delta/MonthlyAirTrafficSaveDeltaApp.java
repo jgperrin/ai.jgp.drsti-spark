@@ -1,4 +1,4 @@
-package ai.jgp.drsti.spark.demo.airtraffic.lab600_monthly_air_traffic_delta;
+package ai.jgp.drsti.spark.demo.airtraffic.lab400_monthly_air_traffic_to_delta;
 
 import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.expr;
@@ -36,7 +36,7 @@ public class MonthlyAirTrafficSaveDeltaApp {
 
     // Creates a session on a local master
     SparkSession spark = SparkSession.builder()
-        .appName("Pax to Delta")
+        .appName("CSV to Dataset")
         .master("local[*]")
         .getOrCreate();
 
@@ -97,6 +97,8 @@ public class MonthlyAirTrafficSaveDeltaApp {
         .withColumn("pax", expr("internationalPax + domesticPax"))
         .drop(domesticPaxDf.col("month"))
         // Very simple data quality
+        .filter(
+            col("month").$less(lit("2020-01-01").cast(DataTypes.DateType)))
         .orderBy(col("month"))
         .cache();
 
@@ -107,7 +109,7 @@ public class MonthlyAirTrafficSaveDeltaApp {
     df.write()
         .format("delta")
         .mode("overwrite")
-        .save("./data/tmp/airtrafficmonth_all");
+        .save("./data/tmp/airtrafficmonth");
 
     tc = System.currentTimeMillis();
     log.info("Data save for in {} ms.", (tc - t0));

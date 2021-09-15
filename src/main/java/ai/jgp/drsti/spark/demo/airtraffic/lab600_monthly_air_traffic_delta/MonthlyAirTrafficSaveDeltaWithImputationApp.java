@@ -1,29 +1,40 @@
-package ai.jgp.drsti.spark.demo.airtraffic.lab400_monthly_air_traffic_delta;
+package ai.jgp.drsti.spark.demo.airtraffic.lab600_monthly_air_traffic_delta;
 
 import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.expr;
 import static org.apache.spark.sql.functions.lit;
+import static org.apache.spark.sql.functions.sum;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import ai.jgp.drsti.spark.utils.DataframeUtils;
+
 /**
  * 
  * @author jgp
  *
  */
-public class MonthlyAirTrafficSaveDeltaApp {
+public class MonthlyAirTrafficSaveDeltaWithImputationApp {
   private static Logger log =
-      LoggerFactory.getLogger(MonthlyAirTrafficSaveDeltaApp.class);
+      LoggerFactory
+          .getLogger(MonthlyAirTrafficSaveDeltaWithImputationApp.class);
 
   public static void main(String[] args) {
-    MonthlyAirTrafficSaveDeltaApp app = new MonthlyAirTrafficSaveDeltaApp();
+    MonthlyAirTrafficSaveDeltaWithImputationApp app =
+        new MonthlyAirTrafficSaveDeltaWithImputationApp();
     app.start();
   }
 
@@ -36,7 +47,7 @@ public class MonthlyAirTrafficSaveDeltaApp {
 
     // Creates a session on a local master
     SparkSession spark = SparkSession.builder()
-        .appName("CSV to Dataset")
+        .appName("Pax to Delta")
         .master("local[*]")
         .getOrCreate();
 
@@ -97,19 +108,54 @@ public class MonthlyAirTrafficSaveDeltaApp {
         .withColumn("pax", expr("internationalPax + domesticPax"))
         .drop(domesticPaxDf.col("month"))
         // Very simple data quality
-        .filter(
-            col("month").$less(lit("2020-01-01").cast(DataTypes.DateType)))
         .orderBy(col("month"))
         .cache();
+    tc = System.currentTimeMillis();
+    log.info("Join in {} ms.", (tc - t0));
+    t0 = tc;
+
+    // Imputation
+    Dataset<Row> df2021 =
+        df.filter(expr(
+            "month >= TO_DATE('2021-01-01') and month <= TO_DATE('2021-12-31')"));
+    df2021.show();
+    int monthCount = (int) df2021.count();
+
+    df2021 = df2021
+        .agg(sum("pax").as("pax"),
+            sum("internationalPax").as("internationalPax"),
+            sum("domesticPax").as("domesticPax"));
+    int pax = DataframeUtils.maxAsInt(df2021, "pax") / (12 - monthCount);
+    int intPax =
+        DataframeUtils.maxAsInt(df2021, "internationalPax")
+            / (12 - monthCount);
+    int domPax =
+        DataframeUtils.maxAsInt(df2021, "domesticPax") / (12 - monthCount);
+    df2021.show();
+
+    List<String> data = new ArrayList();
+    for (int i = monthCount + 1; i <= 12; i++) {
+      data.add("2021-" + i + "-01");
+    }
+    Dataset<Row> dfImputation2021 = spark
+        .createDataset(data, Encoders.STRING()).toDF()
+        .withColumn("month", col("value").cast(DataTypes.DateType))
+        .withColumn("pax", lit(pax))
+        .withColumn("internationalPax", lit(intPax))
+        .withColumn("domesticPax", lit(domPax))
+        .drop("value");
+    dfImputation2021.show();
 
     tc = System.currentTimeMillis();
-    log.info("Transformation to gold zone in {} ms.", (tc - t0));
+    log.info("Imputation in {} ms.", (tc - t0));
     t0 = tc;
+
+    df = df.unionByName(dfImputation2021, false);
 
     df.write()
         .format("delta")
         .mode("overwrite")
-        .save("./data/tmp/airtrafficmonth");
+        .save("./data/tmp/airtrafficmonth_all");
 
     tc = System.currentTimeMillis();
     log.info("Data save for in {} ms.", (tc - t0));

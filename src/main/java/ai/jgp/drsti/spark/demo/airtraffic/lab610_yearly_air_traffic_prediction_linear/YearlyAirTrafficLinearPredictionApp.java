@@ -2,22 +2,14 @@ package ai.jgp.drsti.spark.demo.airtraffic.lab610_yearly_air_traffic_prediction_
 
 import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.sum;
+import static org.apache.spark.sql.functions.when;
+import static org.apache.spark.sql.functions.year;
 
 import java.util.Arrays;
 import java.util.List;
 
-import static org.apache.spark.sql.functions.*;
-
-import org.apache.spark.ml.Pipeline;
-import org.apache.spark.ml.PipelineModel;
-import org.apache.spark.ml.PipelineStage;
-import org.apache.spark.ml.evaluation.RegressionEvaluator;
 import org.apache.spark.ml.feature.VectorAssembler;
-import org.apache.spark.ml.feature.VectorIndexer;
-import org.apache.spark.ml.feature.VectorIndexerModel;
 import org.apache.spark.ml.linalg.Vectors;
-import org.apache.spark.ml.regression.GBTRegressionModel;
-import org.apache.spark.ml.regression.GBTRegressor;
 import org.apache.spark.ml.regression.LinearRegression;
 import org.apache.spark.ml.regression.LinearRegressionModel;
 import org.apache.spark.ml.regression.RegressionModel;
@@ -131,12 +123,9 @@ public class YearlyAirTrafficLinearPredictionApp {
     log.info("/Futures");
 
     dfYear = dfYear.unionByName(futuresDf, true);
-    dfYear.show(40);
-    dfYear.printSchema();
 
     dfYear = model.transform(dfYear);
-    dfYear.show(20);
-
+    dfYear.show(30);
     dfYear.printSchema();
 
     // Preparing dataframe for graph

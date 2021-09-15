@@ -8,7 +8,7 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.MetadataBuilder;
 
-public class DataframeUtils {
+public abstract class DataframeUtils {
 
   public static Dataset<Row> addMetadata(Dataset<Row> df, String columnName,
       String key, String value) {
@@ -29,11 +29,15 @@ public class DataframeUtils {
   }
 
   public static Object min(Dataset<Row> df, String columnName) {
-    return df.selectExpr("MIN("+columnName+")").first().get(0);
+    return df.selectExpr("MIN(" + columnName + ")").first().get(0);
   }
 
   public static Object max(Dataset<Row> df, String columnName) {
-    return df.selectExpr("MAX("+columnName+")").first().get(0);
+    return df.selectExpr("MAX(" + columnName + ")").first().get(0);
+  }
+
+  public static int maxAsInt(Dataset<Row> df, String columnName) {
+    return ((Long) max(df, columnName)).intValue();
   }
 
 }

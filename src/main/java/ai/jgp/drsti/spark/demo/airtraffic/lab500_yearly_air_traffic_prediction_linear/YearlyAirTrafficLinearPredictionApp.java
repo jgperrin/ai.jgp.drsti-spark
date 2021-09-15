@@ -2,22 +2,18 @@ package ai.jgp.drsti.spark.demo.airtraffic.lab500_yearly_air_traffic_prediction_
 
 import static org.apache.spark.sql.functions.col;
 import static org.apache.spark.sql.functions.sum;
-import static org.apache.spark.sql.functions.*;
+import static org.apache.spark.sql.functions.year;
 
-import org.apache.spark.ml.Pipeline;
-import org.apache.spark.ml.PipelineModel;
-import org.apache.spark.ml.PipelineStage;
-import org.apache.spark.ml.evaluation.RegressionEvaluator;
+import java.util.Arrays;
+import java.util.List;
+
 import org.apache.spark.ml.feature.VectorAssembler;
-import org.apache.spark.ml.feature.VectorIndexer;
-import org.apache.spark.ml.feature.VectorIndexerModel;
 import org.apache.spark.ml.linalg.Vectors;
-import org.apache.spark.ml.regression.GBTRegressionModel;
-import org.apache.spark.ml.regression.GBTRegressor;
 import org.apache.spark.ml.regression.LinearRegression;
 import org.apache.spark.ml.regression.LinearRegressionModel;
 import org.apache.spark.ml.regression.RegressionModel;
 import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
 import org.slf4j.Logger;
@@ -28,6 +24,7 @@ import ai.jgp.drsti.spark.DrstiUtils;
 import ai.jgp.drsti.spark.utils.DataframeUtils;
 
 /**
+ * Projection to 2026 based on 2000-2019 data
  * 
  * @author jgp
  *
@@ -51,7 +48,7 @@ public class YearlyAirTrafficLinearPredictionApp {
 
     // Creates a session on a local master
     SparkSession spark = SparkSession.builder()
-        .appName("CSV to Dataset")
+        .appName("Projection to 2026 based on 2000-2019 data")
         .master("local[*]")
         .getOrCreate();
 
@@ -68,7 +65,7 @@ public class YearlyAirTrafficLinearPredictionApp {
     log.info("Reading gold zone in {} ms.", (tc - t0));
     t0 = tc;
 
-    Dataset<Row> dfYear = goldDf
+    Dataset<Row> df = goldDf
         .withColumn("year", year(col("month")))
         .groupBy(col("year"))
         .agg(sum("pax").as("pax"),
@@ -80,55 +77,63 @@ public class YearlyAirTrafficLinearPredictionApp {
     log.info("Transformation for yearly graph {} ms.", (tc - t0));
     t0 = tc;
 
-    dfYear.show(5, false);
-    dfYear.printSchema();
-    
-    //dfYear = dfYear.withColumn("weight", expr("(year-2000)/3"));
+    // Precious processing time saved by using data in DL
 
     String[] inputCols = { "year" };
     VectorAssembler assembler = new VectorAssembler()
         .setInputCols(inputCols)
         .setOutputCol("features");
-    dfYear = assembler.transform(dfYear);
+    df = assembler.transform(df);
 
     LinearRegression lr = new LinearRegression()
         .setMaxIter(10)
-        .setRegParam(0.3)
-        .setElasticNetParam(0.8).setLabelCol("pax");
+        .setRegParam(0.5)
+        .setElasticNetParam(0.8)
+        .setLabelCol("pax");
 
     int threshold = 2019;
-    Dataset<Row> trainingData = dfYear.filter(col("year").$less$eq(threshold));
-    Dataset<Row> testData = dfYear.filter(col("year").$greater(threshold));
+    Dataset<Row> trainingData = df.filter(col("year").$less$eq(threshold));
+    Dataset<Row> testData = df.filter(col("year").$greater(threshold));
 
     LinearRegressionModel model = lr.fit(trainingData);
 
-    // Make predictions on test data
+    // Make predictions on test data, in this situation I have none
     Dataset<Row> predictions = model.transform(testData);
     predictions.show(20);
 
-    predict(2021, model);
-    predict(2020, model);
-    predict(2019, model);
-    predict(2018, model);
-    predict(2017, model);
+    Integer[] l =
+        new Integer[] { 2020, 2021, 2022, 2023, 2024, 2025, 2026 };
+    List<Integer> data = Arrays.asList(l);
+    Dataset<Row> futuresDf =
+        spark.createDataset(data, Encoders.INT()).toDF()
+            .withColumnRenamed("value", "year");
+    assembler = new VectorAssembler()
+        .setInputCols(inputCols)
+        .setOutputCol("features");
+    futuresDf = assembler.transform(futuresDf);
+    log.info("Futures");
+    futuresDf.show();
+    futuresDf.printSchema();
+    log.info("/Futures");
+
+    df = df.unionByName(futuresDf, true);
 
     // Graph
-    dfYear = model.transform(dfYear);
-    dfYear.printSchema();
-    dfYear = dfYear.drop("features");
-    dfYear = dfYear.drop("rawFeatures");
-    dfYear = dfYear.drop("internationalPax");
-    dfYear = dfYear.drop("domesticPax");
+    df = model.transform(df);
+    df.printSchema();
+    df = df.drop("features");
+    df = df.drop("rawFeatures");
+    df = df.drop("internationalPax");
+    df = df.drop("domesticPax");
 
-    dfYear = DrstiUtils.setHeader(dfYear, "year", "Year");
-    dfYear = DrstiUtils.setHeader(dfYear, "pax", "Passengers");
-    dfYear = DrstiUtils.setHeader(dfYear, "prediction", "Prediction");
+    df = DrstiUtils.setHeader(df, "year", "Year");
+    df = DrstiUtils.setHeader(df, "pax", "Passengers");
+    df = DrstiUtils.setHeader(df, "prediction", "Prediction");
 
-    DrstiLineChart d = new DrstiLineChart(dfYear);
+    DrstiLineChart d = new DrstiLineChart(df);
     d.setTitle("US air traffic, in passengers, per year");
-    d.setXTitle("Year " + DataframeUtils.min(dfYear, "year") + " - " +
-        DataframeUtils.max(dfYear, "year")
-        + " - Data cached in Delta Lake");
+    d.setXTitle("Year " + DataframeUtils.min(df, "year") + " - " +
+        DataframeUtils.max(df, "year"));
     d.setYTitle("Passengers (000s)");
     d.render();
 
