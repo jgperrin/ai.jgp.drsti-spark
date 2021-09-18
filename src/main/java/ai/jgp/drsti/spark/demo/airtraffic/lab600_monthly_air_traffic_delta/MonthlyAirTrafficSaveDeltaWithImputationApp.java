@@ -28,9 +28,8 @@ import ai.jgp.drsti.spark.utils.DataframeUtils;
  *
  */
 public class MonthlyAirTrafficSaveDeltaWithImputationApp {
-  private static Logger log =
-      LoggerFactory
-          .getLogger(MonthlyAirTrafficSaveDeltaWithImputationApp.class);
+  private static Logger log = LoggerFactory
+      .getLogger(MonthlyAirTrafficSaveDeltaWithImputationApp.class);
 
   public static void main(String[] args) {
     MonthlyAirTrafficSaveDeltaWithImputationApp app =
@@ -47,7 +46,7 @@ public class MonthlyAirTrafficSaveDeltaWithImputationApp {
 
     // Creates a session on a local master
     SparkSession spark = SparkSession.builder()
-        .appName("Pax to Delta")
+        .appName("Pax with 2021 imputation to Delta")
         .master("local[*]")
         .getOrCreate();
 
@@ -66,7 +65,7 @@ public class MonthlyAirTrafficSaveDeltaWithImputationApp {
             DataTypes.IntegerType,
             true) });
 
-    // Reads a CSV file with header
+    // International Pax
     Dataset<Row> internationalPaxDf = spark.read().format("csv")
         .option("header", true)
         .option("dateFormat", "MMMM yyyy")
@@ -83,7 +82,7 @@ public class MonthlyAirTrafficSaveDeltaWithImputationApp {
     log.info("International pax ingested in {} ms.", (tc - t0));
     t0 = tc;
 
-    // Domestic
+    // Domestic Pax
     Dataset<Row> domesticPaxDf = spark.read().format("csv")
         .option("header", true)
         .option("dateFormat", "MMMM yyyy")
@@ -106,7 +105,11 @@ public class MonthlyAirTrafficSaveDeltaWithImputationApp {
                 .equalTo(domesticPaxDf.col("month")),
             "outer")
         .withColumn("pax", expr("internationalPax + domesticPax"))
+
+        // Make a copy of the original BTS data
+        .withColumn("paxBts", col("pax"))
         .drop(domesticPaxDf.col("month"))
+
         // Very simple data quality
         .orderBy(col("month"))
         .cache();
@@ -114,12 +117,15 @@ public class MonthlyAirTrafficSaveDeltaWithImputationApp {
     log.info("Join in {} ms.", (tc - t0));
     t0 = tc;
 
-    // Imputation
+    // Imputation of missing data
     Dataset<Row> df2021 =
         df.filter(expr(
             "month >= TO_DATE('2021-01-01') and month <= TO_DATE('2021-12-31')"));
     df2021.show();
     int monthCount = (int) df2021.count();
+    log.info(
+        "We only have {} months for 2021, let's impute the {} others.",
+        monthCount, (12 - monthCount));
 
     df2021 = df2021
         .agg(sum("pax").as("pax"),
@@ -131,7 +137,6 @@ public class MonthlyAirTrafficSaveDeltaWithImputationApp {
             / (12 - monthCount);
     int domPax =
         DataframeUtils.maxAsInt(df2021, "domesticPax") / (12 - monthCount);
-    df2021.show();
 
     List<String> data = new ArrayList();
     for (int i = monthCount + 1; i <= 12; i++) {
@@ -144,14 +149,17 @@ public class MonthlyAirTrafficSaveDeltaWithImputationApp {
         .withColumn("internationalPax", lit(intPax))
         .withColumn("domesticPax", lit(domPax))
         .drop("value");
+    log.info("Imputation done:");
     dfImputation2021.show();
 
     tc = System.currentTimeMillis();
     log.info("Imputation in {} ms.", (tc - t0));
     t0 = tc;
 
-    df = df.unionByName(dfImputation2021, false);
+    // Combine data with imputated data
+    df = df.unionByName(dfImputation2021, true);
 
+    df.orderBy(col("month").desc()).show(15);
     df.write()
         .format("delta")
         .mode("overwrite")

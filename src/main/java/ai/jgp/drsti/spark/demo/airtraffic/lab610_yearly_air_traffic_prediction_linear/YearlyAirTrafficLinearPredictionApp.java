@@ -65,10 +65,12 @@ public class YearlyAirTrafficLinearPredictionApp {
     log.info("Reading gold zone in {} ms.", (tc - t0));
     t0 = tc;
 
-    Dataset<Row> dfYear = goldDf
+    Dataset<Row> df = goldDf
         .withColumn("year", year(col("month")))
         .groupBy(col("year"))
-        .agg(sum("pax").as("pax"),
+        .agg(
+            sum("paxBts").as("paxBts"),
+            sum("pax").as("pax"),
             sum("internationalPax").as("internationalPax"),
             sum("domesticPax").as("domesticPax"))
         .orderBy(col("year"));
@@ -77,36 +79,21 @@ public class YearlyAirTrafficLinearPredictionApp {
     log.info("Transformation for yearly graph {} ms.", (tc - t0));
     t0 = tc;
 
-    dfYear.show(5, false);
-    dfYear.printSchema();
+    df.show(5, false);
+    df.printSchema();
 
     String[] inputCols = { "year" };
     VectorAssembler assembler = new VectorAssembler()
         .setInputCols(inputCols)
         .setOutputCol("features");
-    dfYear = assembler.transform(dfYear);
+    df = assembler.transform(df);
 
     LinearRegression lr = new LinearRegression()
         .setMaxIter(10)
         .setRegParam(0.3)
         .setElasticNetParam(0.8).setLabelCol("pax");
 
-    int threshold = 2019;
-    Dataset<Row> trainingData =
-        dfYear.filter(col("year").$less$eq(threshold));
-    Dataset<Row> testData = dfYear.filter(col("year").$greater(threshold));
-
-    LinearRegressionModel model = lr.fit(trainingData);
-
-    // Make predictions on test data
-    Dataset<Row> predictions = model.transform(testData);
-    predictions.show(20);
-
-    predict(2021, model);
-    predict(2020, model);
-    predict(2019, model);
-    predict(2018, model);
-    predict(2017, model);
+    LinearRegressionModel model2019 = lr.fit(df.filter(col("year").$less$eq(2019)));
 
     Integer[] l = new Integer[] { 2022, 2023, 2024, 2025, 2026 };
     List<Integer> data = Arrays.asList(l);
@@ -116,41 +103,50 @@ public class YearlyAirTrafficLinearPredictionApp {
     assembler = new VectorAssembler()
         .setInputCols(inputCols)
         .setOutputCol("features");
-    futuresDf = assembler.transform(futuresDf); 
-    log.info("Futures");
+    futuresDf = assembler.transform(futuresDf);
     futuresDf.show();
     futuresDf.printSchema();
-    log.info("/Futures");
 
-    dfYear = dfYear.unionByName(futuresDf, true);
+    df = df.unionByName(futuresDf, true);
 
-    dfYear = model.transform(dfYear);
-    dfYear.show(30);
-    dfYear.printSchema();
+    df = model2019
+        .transform(df)
+        .withColumnRenamed("prediction", "prediction2019");
+
+    LinearRegressionModel model2021 = lr.fit(df.filter(col("year").$less$eq(2021)));
+    df = model2021
+        .transform(df)
+        .withColumnRenamed("prediction", "prediction2021");
+
+    df.show(30);
+    df.printSchema();
 
     // Preparing dataframe for graph
-    dfYear = dfYear
+    df = df
         .drop("features")
         .drop("indexedFeatures")
         .drop("rawFeatures")
         .drop("internationalPax")
         .drop("domesticPax")
         .withColumn("paxInModel2019",
-            when(col("year").$less$eq(threshold), col("pax"))
+            when(col("year").$less$eq(2019), col("pax"))
                 .otherwise(null));
 
     // Graph
-    dfYear = DrstiUtils.setHeader(dfYear, "year", "Year");
-    dfYear = DrstiUtils.setHeader(dfYear, "paxInModel2019",
+    df = DrstiUtils.setHeader(df, "year", "Year");
+    df = DrstiUtils.setHeader(df, "paxBts", "BTS passengers");
+    df = DrstiUtils.setHeader(df, "paxInModel2019",
         "Passenger used in model 2019");
-    dfYear = DrstiUtils.setHeader(dfYear, "pax", "Passengers");
-    dfYear =
-        DrstiUtils.setHeader(dfYear, "prediction", "Prediction (-> 2019)");
+    df = DrstiUtils.setHeader(df, "pax", "Passengers");
+    df =
+        DrstiUtils.setHeader(df, "prediction2019", "Prediction (Using data until 2019)");
+    df =
+        DrstiUtils.setHeader(df, "prediction2021", "Prediction (Using all data)");
 
-    DrstiLineChart d = new DrstiLineChart(dfYear);
+    DrstiLineChart d = new DrstiLineChart(df);
     d.setTitle("US air traffic, in passengers, per year");
-    d.setXTitle("Year " + DataframeUtils.min(dfYear, "year") + " - " +
-        DataframeUtils.max(dfYear, "year"));
+    d.setXTitle("Year " + DataframeUtils.min(df, "year") + " - " +
+        DataframeUtils.max(df, "year"));
     d.setYTitle("Passengers (000s)");
     d.render();
 
