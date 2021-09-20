@@ -58,7 +58,7 @@ public class UsGdpHistoryApp {
     df.show(10);
 
     DrstiChart d = new DrstiLineChart(df);
-    d.setWorkingDirectory("<path to your public directory of your Drsti web app");
+    // d.setWorkingDirectory("<path to your public directory of your Drsti web app>");
     d.render();
   }
 }
