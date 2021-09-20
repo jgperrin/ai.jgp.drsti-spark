@@ -1,5 +1,7 @@
 package ai.jgp.drsti.spark;
 
+import static scala.collection.JavaConverters.mapAsJavaMapConverter;
+
 import java.io.File;
 import java.io.FileFilter;
 import java.io.FileWriter;
@@ -12,15 +14,12 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.WildcardFileFilter;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
-import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import static scala.collection.JavaConverters.mapAsJavaMapConverter;
-import static org.apache.spark.sql.functions.*;
 
 /**
  * Everything is a DrstiChart (pronounced drishti chart).
@@ -191,5 +190,9 @@ public abstract class DrstiChart {
 
   public void setXScale(String scale) {
     this.xScale = scale;
+  }
+
+  public void setWorkingDirectory(String path) {
+    DrstiConfig.setExportPath(path);    
   }
 }

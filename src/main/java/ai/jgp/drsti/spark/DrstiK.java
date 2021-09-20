@@ -11,5 +11,6 @@ public abstract class DrstiK {
   public static final String SCALE_TIME = "time";
   public static final String X_SCALE = "xscale";
   public static final String SCALE_LABELS = "labels";
+  public static final String ENV_VAR = "DRSTI_DIR";
 
 }

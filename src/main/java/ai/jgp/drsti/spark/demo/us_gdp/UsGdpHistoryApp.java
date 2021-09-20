@@ -36,12 +36,10 @@ public class UsGdpHistoryApp {
         .master("local[*]")
         .getOrCreate();
 
-    // Reads a CSV file with header, called books.csv, stores it in a
-    // dataframe
+    // Reads a CSV file with header
     Dataset<Row> df = spark.read().format("csv")
         .option("header", true)
-        .load("data/us_gdp/usa_gdp.csv")
-        .orderBy("Year");
+        .load("data/us_gdp/usa_gdp.csv");
 
     // Shows at most 10 rows from the dataframe
     df.show(10);
@@ -53,12 +51,14 @@ public class UsGdpHistoryApp {
         .drop("Surplus")
         .drop("Receipts %")
         .drop("Outlays %")
-        .drop("Surplus %");
+        .drop("Surplus %")
+        .orderBy("Year");
 
     // Shows at most 10 rows from the transformed dataframe
     df.show(10);
 
     DrstiChart d = new DrstiLineChart(df);
+    d.setWorkingDirectory("<path to your public directory of your Drsti web app");
     d.render();
   }
 }
