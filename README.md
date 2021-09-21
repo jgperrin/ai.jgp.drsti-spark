@@ -1,4 +1,5 @@
-# ai.jgp.drsti-spark
+# Drsti for Spark (ai.jgp.drsti-spark)
+
 Spark interface for Drsti
 
 ## Resources
